@@ -1,4 +1,6 @@
 require "sounder"
+require "i2c"
+require "mouse"
 
 # Initialize a Keyboard
 kbd = Keyboard.new
@@ -24,10 +26,10 @@ kbd.add_layer :default, %i[
   KC_NO     KC_NO   KC_NO   KC_LANG1    KC_LGUI LOWER_SPC RAISE_ENT KC_BSPACE KC_LANG2  KC_NO    KC_NO     KC_NO
 ]
 kbd.add_layer :raise, %i[
-  KC_GRAVE  KC_EXLM KC_AT   KC_HASH     KC_DLR  KC_PERC   KC_CIRC   KC_AMPR   KC_ASTER  KC_LPRN  KC_RPRN   KC_EQUAL
-  KC_TILD   KC_LABK KC_LCBR KC_LBRACKET KC_LPRN KC_QUOTE  KC_LEFT   KC_DOWN   KC_UP     KC_RIGHT KC_UNDS   KC_PIPE
-  KC_LSFT   KC_RABK KC_RCBR KC_RBRACKET KC_RPRN KC_DQUO   KC_TILD   KC_BSLASH KC_COMMA  KC_DOT   KC_SLASH  KC_RSFT
-  KC_NO     KC_NO   KC_NO   ALT_AT      KC_LGUI ADJUST    RAISE_ENT SPC_CTL   RUBY_GUI  KC_NO    KC_NO     KC_NO
+  KC_GRAVE  KC_EXLM KC_AT   KC_HASH     KC_DLR  KC_PERC   KC_CIRC    KC_AMPR    KC_ASTER   KC_LPRN  KC_RPRN   KC_EQUAL
+  KC_TILD   KC_LABK KC_LCBR KC_LBRACKET KC_LPRN KC_QUOTE  KC_MS_BTN3 KC_MS_BTN1 KC_MS_BTN2 KC_RIGHT KC_UNDS   KC_PIPE
+  KC_LSFT   KC_RABK KC_RCBR KC_RBRACKET KC_RPRN KC_DQUO   KC_TILD    KC_BSLASH  KC_COMMA   KC_DOT   KC_SLASH  KC_RSFT
+  KC_NO     KC_NO   KC_NO   ALT_AT      KC_LGUI ADJUST    RAISE_ENT  SPC_CTL    RUBY_GUI   KC_NO    KC_NO     KC_NO
 ]
 kbd.add_layer :lower, %i[
   KC_ESCAPE KC_EXLM KC_AT   KC_HASH     KC_DLR  KC_PERC   KC_CIRC   KC_AMPR   KC_ASTER  KC_LPRN  KC_RPRN   KC_PLUS
@@ -125,6 +127,51 @@ kbd.define_mode_key :DQ,
 kbd.signal_partner :DQ do
   sounder.play song
   song = (song == :dq_1 ? :dq_2 : :dq_1)
+end
+
+
+# mouse configuration
+i2c = I2C.new(
+  unit: :RP2040_I2C1,
+  frequency: 100 * 1000,
+  sda_pin: 2,
+  scl_pin: 3
+)
+
+begin
+  # 0x0a is the I2C address of AZ1UBALL (PIM447)
+  i2c.write(0x0a, 0x91) # Set accelerated mode
+  # This is also for checking I2C bus itself
+  i2c_valid = true
+rescue => e # i2c.write will raise if it doesn't work
+  puts e, e.message
+  puts "No valid I2C mouse found"
+  i2c_valid = false
+end
+
+if i2c_valid
+  mouse = Mouse.new(driver: i2c)
+  mouse.task do |mouse, keyboard|
+    left, x, up, y, push = mouse.driver.read(0x0a, 5).bytes
+    x = -left if 0 < left
+    y = -up if 0 < up
+    # LEFT: 0b001, RIGHT: 0b010, MIDDLE: 0b100
+    button = (push == 128 ? 0b100 : 0)
+    # 10x speed if the value is larger than 3
+    3 < x.abs ? x *= 10 : x *= 4
+    3 < y.abs ? y *= 10 : y *= 4
+    USB.merge_mouse_report(button, y, -x, 0, 0)
+    # if keyboard.layer == :default
+    #   # 10x speed if the value is larger than 3
+    #   3 < x.abs ? x *= 10 : x *= 2
+    #   3 < y.abs ? y *= 10 : y *= 2
+    #   USB.merge_mouse_report(button, y, -x, 0, 0)
+    # else
+    #   # Works as a scroll wheel when layer is changed
+    #   USB.merge_mouse_report(button, 0, 0, x, -y)
+    # end
+  end
+  kbd.append mouse
 end
 
 kbd.start!

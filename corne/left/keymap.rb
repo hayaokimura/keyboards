@@ -1,6 +1,6 @@
 #require "sounder"
-require "i2c"
-require "mouse"
+#require "i2c"
+#require "mouse"
 
 # Initialize a Keyboard
 kbd = Keyboard.new
@@ -131,47 +131,47 @@ kbd.define_mode_key :BOOTSEL,   [ Proc.new { kbd.bootsel! }, nil,      300, nil 
 
 
 # mouse configuration
-i2c = I2C.new(
-  unit: :RP2040_I2C1,
-  frequency: 100 * 1000,
-  sda_pin: 2,
-  scl_pin: 3
-)
-
-begin
-  # 0x0a is the I2C address of AZ1UBALL (PIM447)
-  i2c.write(0x0a, 0x91) # Set accelerated mode
-  # This is also for checking I2C bus itself
-  i2c_valid = true
-rescue => e # i2c.write will raise if it doesn't work
-  puts e, e.message
-  puts "No valid I2C mouse found"
-  i2c_valid = false
-end
-
-if i2c_valid
-  mouse = Mouse.new(driver: i2c)
-  mouse.task do |mouse, keyboard|
-    left, x, up, y, push = mouse.driver.read(0x0a, 5).bytes
-    x = -left if 0 < left
-    y = -up if 0 < up
-    # LEFT: 0b001, RIGHT: 0b010, MIDDLE: 0b100
-    button = (push == 128 ? 0b100 : 0)
-    # 10x speed if the value is larger than 3
-    3 < x.abs ? x *= 10 : x *= 4
-    3 < y.abs ? y *= 10 : y *= 4
-    USB.merge_mouse_report(button, y, -x, 0, 0)
-    # if keyboard.layer == :default
-    #   # 10x speed if the value is larger than 3
-    #   3 < x.abs ? x *= 10 : x *= 2
-    #   3 < y.abs ? y *= 10 : y *= 2
-    #   USB.merge_mouse_report(button, y, -x, 0, 0)
-    # else
-    #   # Works as a scroll wheel when layer is changed
-    #   USB.merge_mouse_report(button, 0, 0, x, -y)
-    # end
-  end
-  kbd.append mouse
-end
+#i2c = I2C.new(
+#  unit: :RP2040_I2C1,
+#  frequency: 100 * 1000,
+#  sda_pin: 2,
+#  scl_pin: 3
+#)
+#
+#begin
+#  # 0x0a is the I2C address of AZ1UBALL (PIM447)
+#  i2c.write(0x0a, 0x91) # Set accelerated mode
+#  # This is also for checking I2C bus itself
+#  i2c_valid = true
+#rescue => e # i2c.write will raise if it doesn't work
+#  puts e, e.message
+#  puts "No valid I2C mouse found"
+#  i2c_valid = false
+#end
+#
+#if i2c_valid
+#  mouse = Mouse.new(driver: i2c)
+#  mouse.task do |mouse, keyboard|
+#    left, x, up, y, push = mouse.driver.read(0x0a, 5).bytes
+#    x = -left if 0 < left
+#    y = -up if 0 < up
+#    # LEFT: 0b001, RIGHT: 0b010, MIDDLE: 0b100
+#    button = (push == 128 ? 0b100 : 0)
+#    # 10x speed if the value is larger than 3
+#    3 < x.abs ? x *= 10 : x *= 4
+#    3 < y.abs ? y *= 10 : y *= 4
+#    USB.merge_mouse_report(button, y, -x, 0, 0)
+#    # if keyboard.layer == :default
+#    #   # 10x speed if the value is larger than 3
+#    #   3 < x.abs ? x *= 10 : x *= 2
+#    #   3 < y.abs ? y *= 10 : y *= 2
+#    #   USB.merge_mouse_report(button, y, -x, 0, 0)
+#    # else
+#    #   # Works as a scroll wheel when layer is changed
+#    #   USB.merge_mouse_report(button, 0, 0, x, -y)
+#    # end
+#  end
+#  kbd.append mouse
+#end
 
 kbd.start!

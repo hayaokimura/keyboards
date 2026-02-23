@@ -15,8 +15,8 @@ matrix = KeyboardMatrix.new(ROW_PINS, COL_PINS)
 matrix.debounce_ms = 5
 
 # Initialize UART for communication with master
-# TX=0, RX=1 (swapped from master: TX=1, RX=0)
-uart = UART.new(unit: 0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
+# TX=pin0, RX=pin1 (UART0 on RP2040)
+uart = UART.new(unit: :RP2040_UART0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
 
 # Protocol: 1-byte encoding
 # Bit 7: pressed (1) / released (0)
@@ -28,6 +28,7 @@ loop do
     byte |= 0x80 if event[:pressed]
     byte |= (event[:row] & 0x07) << 4
     byte |= event[:col] & 0x0F
+    p "TX: byte=#{byte} row=#{event[:row]} col=#{event[:col]} pressed=#{event[:pressed]}"
     uart.write(byte.chr)
   end
   sleep_ms(1)

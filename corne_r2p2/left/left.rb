@@ -102,28 +102,32 @@ kb.add_layer(:adjust, [
 # UART for split keyboard communication
 # ==============================================================================
 
-# Master: TX=1, RX=0 (slave uses TX=0, RX=1)
-uart = UART.new(unit: 0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
+# Master: TX=pin0, RX=pin1 (same GPIO as slave; TRRS cable crosses TX/RX)
+uart = UART.new(unit: :RP2040_UART0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
 
 SLAVE_COL_OFFSET = 6  # Right half keys map to keymap columns 6-11
+
+# ==============================================================================
+# Split keyboard: UART polling (runs every main loop iteration)
+# ==============================================================================
+kb.before_scan = Proc.new do
+  while uart.bytes_available > 0
+    data = uart.read(1)
+    if data
+      byte = data.ord
+      pressed = (byte & 0x80) != 0
+      row = (byte >> 4) & 0x07
+      col = byte & 0x0F
+      p "UART received: byte=#{byte} row=#{row} col=#{col} pressed=#{pressed}"
+      kb.inject_event(row, col + SLAVE_COL_OFFSET, pressed)
+    end
+  end
+end
 
 # ==============================================================================
 # Main loop
 # ==============================================================================
 kb.start do |event|
-  # Read slave key events from UART
-  while uart.bytes_available > 0
-    data = uart.read(1)
-    if data
-      p "UART received: #{data.inspect}"
-      byte = data.ord
-      pressed = (byte & 0x80) != 0
-      row = (byte >> 4) & 0x07
-      col = byte & 0x0F
-      kb.inject_event(row, col + SLAVE_COL_OFFSET, pressed)
-    end
-  end
-
   # Process custom keycode flags
   keycode = event[:keycode]
   modifier = event[:modifier]
